@@ -15,7 +15,7 @@ In the Intel® 64 and IA-32 Architectures Software Developer’s Manual[^1], the
 
 ## `mov eax, 0xAABBCCDD`
 So, first to write the raw bytecode of `mov eax, 0xAABBCCDD`.
-Under `MOV` in Intel manual (P1211), there are numerous opcodes, but there is one which matches `mov eax, 0xAABBCCDD`; `B8+ rd id`. Why? `EAX` is one of the doubleword general-purpose registers and is represented by the symbol `r32` in instruction statements. `0xAABBCCDD` is a constant value which is specified directly in the instruction itself (as opposed to being stored in a separate location in memory) and referred to as an immediate operand (`imm`). Therefore, we need the instruction which moves an immediate of 4+ bytes (`0xAABBCCDD`) into an `r32`. This is evidently `MOV r32, imm32`, or `B8+ rd id` in opcode:
+Under `MOV` in Intel manual (Page 1211), there are numerous opcodes, but there is one which matches `mov eax, 0xAABBCCDD`; `B8+ rd id`. Why? `EAX` is one of the doubleword general-purpose registers and is represented by the symbol `r32` in instruction statements. `0xAABBCCDD` is a constant value which is specified directly in the instruction itself (as opposed to being stored in a separate location in memory) and referred to as an immediate operand (`imm`). Therefore, we need the instruction which moves an immediate of 4+ bytes (`0xAABBCCDD`) into an `r32`. This is evidently `MOV r32, imm32`, or `B8+ rd id` in opcode:
 
 ![MOV](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/MOV.png)
 
@@ -27,7 +27,7 @@ dd 0AABBCCDDh
 `dd` is used because `0AABBCCDDh` is a 32-bit/4 byte value and not a byte (`db`). `MASM` also doesn't like immediates or raw bytes that start with an alphabet character, so the values must be preceded by a zero.
 
 ## `SAHF`
-So, according to the Intel manual, the SAHF instruction “loads SF, ZF, AF, PF, and CF from AH into EFLAGS register.” and is represented by `9E` in opcode. Therefore, we can simply write:
+So, according to the Intel manual (Page 1764), the SAHF instruction “loads SF, ZF, AF, PF, and CF from AH into EFLAGS register.” and is represented by `9E` in opcode. Therefore, we can simply write:
 ```asm
 db 09Eh
 ```
@@ -47,7 +47,7 @@ PL = Sign Flag. ZR = Zero Flag. PE = Parity Flag.
 `jz mylabel` needs to be converted to opcode. However, since we haven’t written the `AND` instruction, we don’t know how far it would need to jump to `mylabel`. Therefore, let’s write the `AND` instruction first so it’s easier to calculate.   
 
 ## `and eax, 0x31337`
-So, much like `MOV`, we need an `r32` for `EAX` and immediate of at least 3 bytes. Such instruction can be found on P655 in the manual. `AND EAX, imm32` matches this, and its opcode is `25`. So, we can write:
+So, much like `MOV`, we need an `r32` for `EAX` and immediate of at least 3 bytes. Such instruction can be found on page 655 in the manual. `AND EAX, imm32` matches this, and its opcode is `25`. So, we can write:
 ```asm
 db 025h
 dd 031337h
@@ -58,7 +58,7 @@ So, we also write `mylabel:` which serves as a reference point for the jump inst
 ## `jz mylabel`
 Now we have the opcode for `AND`, we can easily calculate how many bytes it needs to jump to `mylabel`; one byte for `db`, and four bytes for `dd`, so a total of 5 bytes. Now, to search the manual for a `JZ` which jumps 5 bytes.
 
-There are several `JZ`’s, but only one which matches our target 1-byte range; `JZ rel8`:
+There are several `JZ`’s, but only one which matches our target 1-byte range; `JZ rel8` (Page 1107):
 
 ![JZ](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/JZ.png)
 
@@ -76,7 +76,7 @@ db 05h
 In our case, `ZF` is set by `SAHF`, so it will jump.
 
 ## `ret`
-Lastly, `RET` is simply replaced by its opcode `C3` to complete the assembly sequence:
+Lastly, `RET` (Page 1731) is simply replaced by its opcode `C3` to complete the assembly sequence:
 ```asm
 db 0B8h
 dd 0AABBCCDDh

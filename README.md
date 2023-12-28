@@ -1,5 +1,5 @@
 # Writeups
-This repository contains a collection of my writeups on CTF, labs, etc.
+This repository contains a collection of my writeups on CTFs, labs, etc.
 
 | Name                                                                                                                   | Description                                          | Language  |
 |------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|-----------|

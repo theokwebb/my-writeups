@@ -17,7 +17,7 @@ In the Intel® 64 and IA-32 Architectures Software Developer’s Manual[^1], the
 So, first to write the raw bytecode of `mov eax, 0xAABBCCDD`.
 Under `MOV` in Intel manual (P1211), there are numerous opcodes, but there is one which matches `mov eax, 0xAABBCCDD`; `B8+ rd id`. Why? `EAX` is one of the doubleword general-purpose registers and is represented by the symbol `r32` in instruction statements. `0xAABBCCDD` is a constant value which is specified directly in the instruction itself (as opposed to being stored in a separate location in memory) and referred to as an immediate operand (`imm`). Therefore, we need the instruction which moves an immediate of 4+ bytes (`0xAABBCCDD`) into an `r32`. This is evidently `MOV r32, imm32`, or `B8+ rd id` in opcode:
 
-IMAGE
+![MOV](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/MOV.png)
 
 To write this in hexadecimal opcode you use `db` (define byte) and `dd` (define dword) directives to declare the values:
 ```asm
@@ -33,7 +33,7 @@ db 09Eh
 ```
 `0xAABBCCDD` was moved into `EAX`, so `AH` is `0xCC` (BIN = 1100 1100). `AH`’s bit values (11001100) are loaded into the EFLAGS register. Therefore, as per the EFLAGS register below, `PF` (Parity), `ZF` (Zero) and `SF` (Sign) are set: 
 
-IMAGE
+![EFLAGS Reg](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/EFLAGS%20Reg.png)
 
 I.e., bit 2 of 11001100 is 1, so its Parity Flag is set.
 
@@ -60,7 +60,7 @@ Now we have the opcode for `AND`, we can easily calculate how many bytes it need
 
 There are several `JZ`’s, but only one which matches our target 1-byte range; `JZ rel8`:
 
-IMAGE
+![JZ](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/JZ.png)
 
 `rel8` (relative offset) is a signed 8-bit immediate value which is added to the address of the `RIP` register if `ZF = 1`. This is so it can calculate the target jump address.
 

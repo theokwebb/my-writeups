@@ -33,7 +33,7 @@ db 09Eh
 ```
 `0xAABBCCDD` was moved into `EAX`, so `AH` is `0xCC` (BIN = 1100 1100). `AH`’s bit values (11001100) are loaded into the EFLAGS register. Therefore, as per the EFLAGS register below, `PF` (Parity), `ZF` (Zero) and `SF` (Sign) are set: 
 
-![EFLAGS Reg](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/EFLAGS%20Reg.png)
+![EFLAGS](https://github.com/theokwebb/my-writeups/blob/main/LabRTFM%26WTFI/EFLAGS.png)
 
 I.e., bit 2 of 11001100 is 1, so its Parity Flag is set.
 

@@ -2,7 +2,7 @@
 
 This writeup delves into the Binary Bomb lab, originally designed for [CMU’s architecture class](http://csapp.cs.cmu.edu/3e/labs.html) by Bryant & O'Hallaron and adapted for Intel x86-64 architecture by Xeno Kovah as a part of Xeno’s [Architecture 1001: x86-64 Assembly](https://ost2.fyi/Arch1001) course at [OpenSecurityTraining2](https://ost2.fyi).
 
-The primary objective is to determine the program's required input to prevent it from exploding. 
+The primary objective is to determine the program's required input to prevent the bomb from exploding. 
 
 # Sections
 - [Phase 1](#phase-1)
@@ -14,7 +14,7 @@ The primary objective is to determine the program's required input to prevent it
 
 # Phase 1
 <a name="phase-1"></a>
-I used WinDBG for this challenge and opted for normal mode, so I was provided with the symbol information in the bomb.pdb file. 
+I used WinDBG for this challenge and opted for normal mode, so I was provided with the symbol information in the `bomb.pdb` file. 
 
 I set a breakpoint on `main` and stepped through the instructions. Eventually, we are prompted to enter some input. I entered `test`, as any old input will do for now just to understand how the program functions. 
 

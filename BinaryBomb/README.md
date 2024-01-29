@@ -11,6 +11,7 @@ The primary objective is to determine the program's required input to prevent th
 - [Phase 4](#phase-4)
 - [Phase 5](#phase-5)
 - [Phase 6](#phase-6)
+- [Secret Phase](#secretphase)
 
 # Phase 1
 <a name="phase-1"></a>
@@ -413,6 +414,165 @@ Therefore, our input for `phase_6` is: `5 4 3 1 6 2`:
 ![Screenshot23](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot23.png)
 
 Bomb defused!
+
+# Secret Phase
+<a name="secretphase"></a>
+In `phase_3` I stumbled across two unusual functions: `secret_phase` and `fun7`. Now, with the bomb defused, I thought I would try and find where those functions are called from. After *quite* some time, I found that `secret_phase` is called in the `phase_defused` function.
+
+In `phase_defused`, it `CMP`’s the value of a variable named `num_input_strings` to `6`:
+```asm
+cmp     dword ptr [bomb!num_input_strings (00007ff7`fb95f8c4)],6
+jne     bomb!phase_defused+0xcd (00007ff7`fb952d4d)
+```
+If we take the jump, it jumps past the call to `secret_phase`. Therefore, we need to avoid this jump.
+
+If we do a little research, we will find in the `read_line` function called before each phase `num_input_strings`’s value is incremented by `0x1`:
+```asm
+mov     eax,dword ptr [bomb!num_input_strings (00007ff7`fb95f8c4)]
+inc     eax
+mov     dword ptr [bomb!num_input_strings (00007ff7`fb95f8c4)],eax
+```
+This means that we need to have passed `phase_6` in order to skip the `JNE`. 
+
+In the next section of `phase_defused`, you can see there is another `JNE` which we need to skip in order call `secret_phase`:
+
+![Screenshot24](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot24.png)
+
+```asm
+call    bomb!ILT+705(sscanf) (00007ff7`fb9512c6)
+mov     dword ptr [rbp+0B4h],eax
+cmp     dword ptr [rbp+0B4h],3
+jne     bomb!phase_defused+0xc1 (00007ff7`fb952d41)
+```
+Is the return value from `sscanf`  `!=` to `3`?
+
+So, let’s take a look at `sscanf`’s parameters:
+
+![Screenshot25](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot25.png)
+
+Our input for `phase_4` was `3 10`. `sscanf` reads this data from a buffer, following the format specification provided in the second parameter. In `phase_4`, the format specification is `%d %d`. However, the format specification here is `%d %d %s`.
+
+According to the [sscanf](https://learn.microsoft.com/en-us/cpp/c-runtime-library/format-specification-fields-scanf-and-wscanf-functions?view=msvc-170) documentation, it states, "If a character in the input stream conflicts with the format specification, scanf terminates, and the character is left in the input stream as if it hadn't been read."
+
+This implies that even if we provide input like `3 10 test` it won’t interfere with `phase_4`. Furthermore, if the same buffer is used in a call to `sscanf` with the format specification `%d %d %s` it will read and assign values accordingly.
+
+In the next section of `phase_defused`, our string assigned from `sscanf` (`test`) is compared to another string in the `strings_not_equal` function:
+
+![Screenshot26](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot26.png)
+
+![Screenshot27](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot27.png)
+
+It compares our input to the string `DrEvil`. So, let’s switch our input to that:
+
+![Screenshot28](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot28.png)
+
+It appears we’re presented with another challenge, so let’s step into the `secret_phase`.
+
+Here, we have a series of `CMP` instructions:
+```asm
+cmp     dword ptr [rbp+24h],1
+jl      bomb!secret_phase+0x4f (00007ff7`fb9528df)
+```
+Is the value at [`rbp+24h`] (our input) less than `1`?
+If so, *jump* to `explode_bomb`.
+
+```asm
+cmp     dword ptr [rbp+24h],3E9h
+jle     bomb!secret_phase+0x54 (00007ff7`fb9528e4)
+```
+Is the value at [`rbp+24h`] (our input) less than or equal to `3E9` (DEC `1001`)”?
+If so, *skip* `explode_bomb`.
+
+It then calls an unknown function `fun7` with the parameters: `0x24` (`RCX`) and our input (`RDX`). `fun7`’s return value is stored in `rbp+44h` and compared to the immediate `0x5`. Therefore, need to somehow make the return value `0x5`:
+```asm
+call    bomb!ILT+35(fun7) (00007ff7`fb951028)
+mov     dword ptr [rbp+44h],eax
+cmp     dword ptr [rbp+44h],5
+je      bomb!secret_phase+0x71 (00007ff7`fb952901)
+```
+So, let’s unassemble fun7. 
+
+Here, we encounter several control flow instructions:
+```asm
+cmp     qword ptr [rbp+0E0h],0
+jne     bomb!fun7+0x4b (00007ff7`fb951e7b)
+```
+Is the value at [`rbp+0E0h`] (`0x24`) *not* equal to `0`?
+
+```asm
+cmp     dword ptr [rbp+0E8h],eax
+jge     bomb!fun7+0x78 (00007ff7`fb951ea8)
+```
+Is the value at [`rbp+0E8h`] (our input) *greater than or equal* to `0x24`?
+
+If it is greater than or equal to `0x24`:
+```asm
+cmp     dword ptr [rbp+0E8h],eax
+jne     bomb!fun7+0x8f (00007ff7`fb951ebf)
+```
+Is the value at [`rbp+0E8h`] (our input) not equal to `0x24`?
+
+If our input is *equal* to `0x24`, it is zeroed and returned.
+
+If our input is **greater** than `0x24`:
+`fun7` is called again, but this time with the address of `rbp+0E0h` (`0x24`) incremented by `0x10`.
+
+`rbp+0E0h` (`0000009027fdf8d0`) points to the memory location `00007ff7fb95f1b0`, where the value `0x24` is stored. `00007ff7fb95f1b0` incremented by `0x10` results in `00007ff7fb95f180`, where the value `0x32` is stored.
+
+After the `fun7` call, the `LEA` (Load Effective Address) instruction effectively doubles the return value and adds `1` more, storing the result in `EAX`:
+```asm
+lea     eax,[rax+rax+1]
+```
+
+If our input is **less** than `0x24`:
+`fun7` function is called again, but this time with the address of `rbp+0E0h` (`0x24`) incremented by `0x8`. `00007ff7fb95f1b0` incremented by `0x8` results in `00007ff7fb95f198`, which holds the value `0x8`.
+
+After the `fun7` call, a `SHL` (Shift Logical Left) operation shifts the return value by `1` bit, and we exit the function. 
+
+In essence, `fun7` is a recursive function that as part of its execution, invokes itself, and the direction it takes depends on whether our input is greater than or equal to `rbp+0E8h`. To understand all the possible paths, I manually traced through the various addresses in WinDBG to find their associated values:
+
+```asm
+00007ff7`fb95f1b0 (0x24)  INC by 0x10 = 0x32
+                          INC by 0x8 = 0x8
+
+00007ff7`fb95f180 (0x32)  INC by 0x10 = 0x6b
+                          INC by 0x8 = 0x2d
+
+00007ff7`fb95f198 (0x8)   INC by 0x10 = 0x16
+                          INC by 0x8 = 0x6
+
+00007ff7`fb95f168 (0x16)  INC by 0x10 = 0x23 (0x0 value beyond)
+                          INC by 0x8 = 0x14 (0x0 value beyond)
+
+00007ff7`fb95f168 (0x6)   INC by 0x10 = 0x7 (0x0 value beyond)
+                          INC by 0x8 = 0x1 (0x0 value beyond)
+
+00007ff7`fb95f168 (0x6b)  INC by 0x10 = 0x3e9 (0x0 value beyond)
+                          INC by 0x8 = 0x63 (0x0 value beyond)
+
+00007ff7`fb95f168 (0x2d)  INC by 0x10 = 0x2f (0x0 value beyond)
+                          INC by 0x8 = 0x28 (0x0 value beyond)
+```
+So, for example, by incrementing `00007ff7fb95f1b0` by `0x10`, the offset address (`00007ff7fb95f180`) holds the value `0x32`. If we increment `0x32`’s address by `0x8`, the offset address (`00007ff7fb95f168`) holds the value `0x2d`, and so on. It is clear that many potential paths exist.
+
+Now, the key part to this lies in the instructions *after* the `fun7` call and how the stack operates. Consider if we input `0x28` (DEC `40`), a value found at one of the possible addresses, and note the specific path it takes:
+* Since `0x28` `>` `0x24`, `rbp+0E0h`'s address is incremented by `0x10`, making its value `0x32`.
+* Since `0x28` `<` `0x32`, `rbp+0E0h`'s address is incremented by `0x8`, making its value `0x2d`.
+* Since `0x28` `<` `0x2d`, `rbp+0E0h`'s address is incremented by `0x8`, making its value `0x28`.
+* Since `0x28` matches `0x28`, it is zeroed and returned.
+
+Once it returns `0x0` to the preceding `fun7` function call, the previous function call resumes and executes its next instruction. In the case of `0x8`, it shifts the return value `0x0`, to the left by `1` bit, and then exits the function. However, other function calls sit on the stack, so we pick up where we left off with the other function call, which also shifts the return value `0x0`, to the left by `1` bit and exits the function. In the next active frame on the stack, where we previously incremented by `0x10`, the return value (still `0x0`) is doubled, `0x1` is added, and then the frame is popped off the stack. Finally, with the stack empty, we return to `secret_phase` with `0x1`. This demonstrates how the `SHL` and `LEA` instructions, coupled with the right input, can eventually lead to a return value of `0x5`. This is the power of recursion. 
+
+So, which path should we take? Our input must eventually match one of the possible values in the `INC` `0x10`/`0x8` paths in order to be zeroed; otherwise, we will skip the first `JNE` in `fun7` and move `0FFFFFFFFh` into `EAX`, resulting in a return value greater than `5`. Additionally, the next call requires increasing `0x0` to `0x1` with the `LEA` instruction, as `SHL` will have no effect on `0x0`. Therefore, we could shift `0x1` to `0x2` with `SHL`, and use `LEA` to double `0x2` and increment it by `0x1`, in order to achieve a final return value of `0x5`.
+
+Here is the exact path:
+* Input needs to be `>` than `0x24` (`INC 0x10`).
+* Input needs to be `<` than `0x32` (`INC 0x8`).
+* Input needs to match `0x2F` (DEC `47`) (`INC 0x10`).
+
+This guarantees a return value of `0x5` to successfully defuse the secret phase.
+
+![Screenshot29](https://github.com/theokwebb/my-writeups/blob/main/BinaryBomb/Images/Screenshot29.png)
 
 #
 

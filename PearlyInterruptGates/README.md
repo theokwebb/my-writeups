@@ -1,5 +1,11 @@
 # Labs: Pearly Interrupt Gates 1 & 2
 
+This writeup covers the Pearly Interrupt Gates lab from Xeno’s [Architecture 2001: x86-64 OS Internals](https://ost2.fyi/Arch2001) course at [OpenSecurityTraining2](https://ost2.fyi).
+
+Its primary goal is to deepen our understanding of interrupt and exception-handling mechanisms.
+
+On question 5 I struggled to understand stack switching and how a target RSP address is found. Therefore, I have also attempted to clearly describe this process with the help of Xeno’s slides and the Intel manual [here](#interrupts).
+
 ## Disclaimer
 
 I am new to x86-64 OS Internals, so if there are any mistakes or necessary additions, please let me know on [X](https://twitter.com/theokwebb).
@@ -12,16 +18,14 @@ I am new to x86-64 OS Internals, so if there are any mistakes or necessary addit
 
 `dq` = quadwords (8 bytes).
 
-`00107100` in entry one corresponds to bytes `3:0`, `5fe18e00` to `7:4`, `fffff805` to `11:8`, and `00000000` to `15:12` below:
+In entry one, the value `00107100` corresponds to bytes `3:0`, `5fe18e00` to bytes `7:4`, `fffff805` to bytes `11:8`, and `00000000` to bytes `15:12` as shown below:
 
 ![Screenshot2](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot2.png)
-
-WinDBG output: each line shows a 64-bit value with the least significant byte (LSB) on the right and the most significant byte (MSB) on the left.
 
 # Part 1 Questions
 #### 1. Why is a `dq idtr L10` printing out `8` descriptors, not `16`?
 
-`dq` represents a quadword which is `8` bytes, and an IDT descriptor is `16` bytes, so each descriptor takes up two lines, and thus will only print out 8 descriptors instead of `16` (`L10` is hex, which is `16` in decimal).
+`dq` represents a quadword which is `8` bytes, and an IDT descriptor is `16` bytes, so each descriptor takes up two lines. Therefore, it will only print out `8` descriptors instead of `16` (`L10` is hex, which is `16` in decimal).
 
 #### 2. Which entries (if any) are Interrupt Gates and which are Trap Gates?
 
@@ -36,15 +40,17 @@ WinDBG output: each line shows a 64-bit value with the least significant byte (L
 0x07 - 5fe18e00`001074c0 00000000`fffff805
 ~~~
 
-The `type` field are bits `11:8` in bytes `7:4`. Entry `0x00`’s (`5fe18e00`) bytes `7:4` in binary are:
+As illustrated in Figure 6-8, the `type` field is represented by bits `11:8` within bytes `7:4`. For entry `0x00` (`5fe18e00`), the binary representation of bytes `7:4` is as follows:
+
 ~~~
 0101 1111 1110 0001 1000 1110 0000 0000
 ~~~
-Bits `31:16` is the offset and bits `11:8` (`1110`) is the type. `1110` is for Interrupt Gate and `1111` is for Trap Gate, so entry `0x00` is an Interrupt Gate. Since the type bits for each entry are `0xE` (`1110`), they all appear to be Interrupt Gates.
+
+Here, `bits 31:16` define the offset, and bits `11:8` (`1110`) determine the type. The value `1110` indicates an Interrupt Gate, while `1111` would signify a Trap Gate. Therefore, with the type bits set to `0xE` (`1110`) for entry `0x00`, it is as an Interrupt Gate. This suggests that all entries with type bits of `0xE` (`1110`) are Interrupt Gates.
 
 #### 3. What is the target far pointer for each entry?
 
-A logical address (far pointer) is a 16-bit segment selector + 32/64 bit offset. In entry `0x00`, bits `31:16` in bytes `0:3` (`0010`) is the Segment Selector, bits `15:0` in bytes `0:3` (`7100`), bits `31:16` in bytes `7:4` (`5fe1`), bits `63:32` in bytes `11:8` (`fffff805`) is the offset within the segment. Therefore, the logical address for entry `0x00` is:
+A logical address (far pointer) is a 16-bit segment selector + 32/64 bit offset. For entry `0x00`, the segment selector is defined by bits `31:16` of bytes `0:3` (`0010`), while the offset within the segment is determined by combining bits `15:0` in bytes `0:3` (`7100`), bits `31:16` in bytes `7:4` (`5fe1`), bits `63:32` in bytes `11:8` (`fffff805`). Therefore, the logical address for entry `0x00` is as follows:
 
 - Segment Selector: `0010`
 - Offset: `fffff805 5fe17100`
@@ -62,17 +68,17 @@ A logical address (far pointer) is a 16-bit segment selector + 32/64 bit offset.
 
 #### 4. Which entries (if any) use the IST?
 
-Bits `2:0` in bytes `7:4` (i.e., `5fe18e00`) is the Interrupt Stack Table (IST). For entries `0x00`, `0x03`, `0x04`, `0x05`, `0x06`, and `0x07`, their bits are all `000`. This means they don’t use an IST entry and use the traditional TSS entries (highlighted in blue in the below) to find the stack and transition to `R0-2`.
+In the case of bytes `7:4` (`5fe18e00`), bits `2:0` designate the Interrupt Stack Table (IST) index. For entries `0x00`, `0x03`, `0x04`, `0x05`, `0x06`, and `0x07`, these bits are all set to `000`. This means that these entries do not use an IST entry. Instead, they use the traditional TSS entries (highlighted in blue in the below) to determine the appropriate stack for transitioning to rings `R0-2`.
 
 ![Screenshot3](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot3.png)
 
-Entry `0x01`’s bits are `100`, and entry `0x02`’s bits are `011`. `100` (entry `0x01`) and `011` (entry `0x02`) is the index where the processor finds the stack to use for the RSP. Therefore, entry `0x01` and entry `0x02` use the IST:
+Entry `0x01`’s bits are set to `100`, and entry `0x02`’s bits are set to `011`. These values, `100` for entry `0x01` and `011` for entry `0x02`, specify the IST index that the processor uses to find the stack for the RSP. Therefore, entry `0x01` and entry `0x02` use the IST for stack selection:
 
 ![Screenshot4](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot4.png)
 
 #### 5. What is the target RSP address where saved state will be stored for each entry?
 
-The Descriptor Privilege Level (DPL) is bits `14:13` in bytes `7:4` (contained within in the **bold** byte below):
+The Descriptor Privilege Level (DPL) is determined by bits `14:13` in the highlighted portion of bytes `7:4`:
 
 - 0x00: 5fe1**8**e00 00107100 00000000 fffff805
 - 0x01: 5fe1**8**e04 00107180 00000000 fffff805
@@ -83,7 +89,7 @@ The Descriptor Privilege Level (DPL) is bits `14:13` in bytes `7:4` (contained w
 - 0x06: 5fe1**8**e00 00107440 00000000 fffff805
 - 0x07: 5fe1**8**e00 001074c0 00000000 fffff805
 
-Hex `0x8` in binary is 1**00**0, and hex `0xE` in binary is 1**11**0.
+In binary, `0x8` translates to 1**00**0, and `0xE` translates to 1**11**0.
 -	00 (binary) = Ring 0.
 -	01 (binary) = Ring 1.
 -	10 (binary) = Ring 2.
@@ -99,13 +105,13 @@ This means that those with `0x8` are for `R0`, and those with `0xE` are for `R3`
 - 0x06 - RSP0
 - 0x07 - RSP0
 
-Entries `0x00`, `0x05`, `0x06`, and `0x07` are executed at `R0`. If an attempt is made to invoke these handlers through a software interrupt (the processor ignores the DPL of interrupt and trap gates for hardware-generated interrupts) and the CPL is greater than the DPL (`R0`) (of the interrupt or trap gate), then the processor would **GENERALLY** not permit transfer of execution to the exception- or interrupt-handler procedure, and it would result in a general-protection exception (#GP). If the CPL is equal to the DPL (`R0`) and the handler is called, then the current stack is used.
+Entries `0x00`, `0x05`, `0x06`, and `0x07` are executed at `R0`. If an attempt is made to invoke these handlers through a software interrupt - noting that the processor ignores the DPL for hardware-generated interrupts - and the Current Privilege Level (CPL) is greater than the DPL (`R0`) of the interrupt or trap gate, typically, the processor would not permit transfer of execution to the exception- or interrupt-handler procedure, resulting in a general-protection exception (#GP). Conversely, if the CPL is equal to the DPL (`R0`) and the handler is called, then the current stack is used.
 
-For entries `0x03` and `0x04`, which are executed at `R3`, a stack switch is not required because `R3` is accessible from all privilege levels.
+For entries `0x03` and `0x04` which are executed at `R3`, a stack switch is **not** required because `R3` is accessible from all privilege levels.
 
-Entry `0x01` and `0x02`’s IST is non-zero. Therefore, it uses the IST bits to specify a specific index from the Interrupt Descriptor Table (IDT) to use for the RSP. This stack is obtained from the TSS (Task State Segment) for the currently executing task. Entry `0x01`’s bits are `100` (`0x4`), and entry `0x02`’s bits are `011` (`0x3`), so entry `0x01`’s index is `0x4` in the IST and `0x02`’s index is `0x3`.
+For entries `0x01` and `0x02`, their IST values are non-zero. Therefore, these entries use their IST bits to pinpoint an index within the Interrupt Descriptor Table (IDT) that corresponds to a specific stack to use for the RSP. Specifically, the IST index for entry `0x01` is set to `0x4` (`100` in binary), and for entry `0x02`, it's `0x3` (`011` in binary). Thus, the processor fetches the corresponding stack from the Task State Segment (TSS) based on these IST indices for the current task.
 
-So, what is the current privilege level (CPL) of the currently executing code? This can be determined by looking at the current Code-Segment and Code-Segment Descriptor:
+So, what is the CPL of the currently executing code? This can be determined by looking at the current Code-Segment and Code-Segment Descriptor.
 
 In order to display the value of the CS register, you can use the WinDBG register command `r cs`:
 ~~~
@@ -114,7 +120,7 @@ cs=0010
 ~~~
 ![Screenshot8](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot8.png)
 
-The CS register contains an `RPL`, a `TI`, and an `index`. The `RPL` field (bits `0` and `1`) specify the requested privilege level of **ANY** segment selector. However, for the CS segment register, bits `0` and `1` specify the privilege level of the currently executing program or procedure.
+The Code Segment (CS) register contains an RPL (Requested Privilege Level), a TI (Table Indicator), and an index. Specifically, the RPL field, represented by the least significant bits (`0` and `1`) of **any** segment selector, specifies the requested privilege level of a segment selector. However, in the context of the CS segment register, bits `0` and `1` indicate the privilege level of the currently executing program or procedure.
 
 `TI` is set to zero, so it points to the Global Descriptor Table (GDT). Specifically, it points at index `2` (`00010000`). The GDT indicates the memory location for the code segment. However, in 64-bit environments, it does not take a base or limit from there but assumes zero. Therefore, the information taken from the GDT is access information, specifying who is allowed to access this memory for this particular code segment, whether the kernel or user space. 
 
@@ -124,7 +130,7 @@ In order to view the GDT, you can use `!ms_gdt` command with the SwishDBGExt plu
 
 Here, we can see the `DPL` for index `2` is `R0`. The privilege level of the segment that the CS register points to (its `DPL`) is effectively the CPL of the currently executing code (`R0`).
 
-So, back to the original question. In order to find the specific RSP address of each index we can use the address of a 64-bit TSS from the GDT:
+So, back to the original question. In order to find the specific RSP address of each index, we can use the address of a 64-bit TSS from the GDT:
 
 ![Screenshot5](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot5.png)
 
@@ -136,7 +142,7 @@ As entry `0x01`’s index is `0x4`, the RSP address where it's saved state will 
 ~~~
 [04] 0xfffff805`6326c9d0
 ~~~
-For, entry `0x02` whose index is `0x3`, it is:
+For entry `0x02`, whose index is `0x3`, it is:
 ~~~
 [03] 0xfffff805`6326c7d0
 ~~~
@@ -171,17 +177,16 @@ Entry `0x03` and `0x04` (shown above).
 
 # Part 2 Questions
 
-#### 1.	Did you interpret the first `8` interrupt descriptors correctly according to the !idt output?
+#### 1.	Did you interpret the first `8` interrupt descriptors correctly according to the `!idt` output?
 
 :+1:
 
-#### 2.	Did you get any IST targets correct according to the !idt output?
+#### 2.	Did you get any IST targets correct according to the `!idt` output?
 
 :+1:
 
 # Understanding Stack Switching and Target RSP Address Determination in x86-64 Architecture
-
-I struggled to understand a stack switching and how a target RSP address is found, so by combining Xeno’s slides and the Intel manual I attempted to describe this process below:
+<a name="interrupts"></a>
 
 #### How is the Interrupt Descriptor Table (IDT) Found?
 
@@ -203,11 +208,9 @@ Therefore, before the processor can call the interrupt or exception handler (sho
 
 In the case of a stack switch (according to Section 6.12.1 Vol. 3A of the Intel manual):
 
-“a. The segment selector and stack pointer for the stack to be used by the handler are obtained from the TSS (Task State Segment) for the currently executing task. On this new stack, the processor pushes the stack segment selector and stack pointer of the interrupted procedure.
-
-b. The processor then saves the current state of the EFLAGS, CS, and EIP registers on the new stack (see Figure 6-4 below).
-
-c. If an exception causes an error code to be saved, it is pushed on the new stack after the EIP value.”
+- “The segment selector and stack pointer for the stack to be used by the handler are obtained from the TSS (Task State Segment) for the currently executing task. On this new stack, the processor pushes the stack segment selector and stack pointer of the interrupted procedure.
+- The processor then saves the current state of the EFLAGS, CS, and EIP registers on the new stack (see Figure 6-4 below).
+- If an exception causes an error code to be saved, it is pushed on the new stack after the EIP value.”
 
 ![Screenshot12](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot12.png)
 

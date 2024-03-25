@@ -2,7 +2,7 @@
 
 This writeup covers the Pearly Interrupt Gates lab from Xeno’s [Architecture 2001: x86-64 OS Internals](https://ost2.fyi/Arch2001) course at [OpenSecurityTraining2](https://ost2.fyi).
 
-Its primary goal is to deepen our understanding of interrupt and exception-handling mechanisms.
+Xeno made the lab to help deepen students' understanding of interrupt and exception-handling mechanisms.
 
 On question 5 I struggled to understand stack switching and how a target RSP address is found. Therefore, I have also attempted to clearly describe this process with the help of Xeno’s slides and the Intel manual [here](#interrupts).
 

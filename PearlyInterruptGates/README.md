@@ -188,9 +188,9 @@ Entry `0x03` and `0x04` (shown above).
 # Understanding Stack Switching and Target RSP Address Determination in x86-64 Architecture
 <a name="interrupts"></a>
 
-#### How is the Interrupt Descriptor Table (IDT) Found?
+#### Locating the Interrupt Descriptor Table (IDT): A Key Step in Interrupt Handling
 
-The IDT is located by the IDT Register (IDTR), and the LIDT (load IDT register) instruction (a privileged instruction) loads the IDTR register with the base address and limit held in a memory operand (Section 6-10 Vol. 3A). This base address points at the start of the Interrupt Descriptor Table (IDT), and the limit specifies the size of the IDT:
+So, when an interrupt or exception occurs, the hardware automatically consults the IDTR. The IDT is located by the IDT Register (IDTR), and the LIDT (load IDT register) instruction (a privileged instruction) loads the IDTR register with the base address and limit held in a memory operand (Section 6-10 Vol. 3A). This base address points at the start of the Interrupt Descriptor Table (IDT), and the limit specifies the size of the IDT:
 
 ![Screenshot10](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot10.png)
 
@@ -223,17 +223,16 @@ That all being said, in Section 6.12.1.2 Vol. 3A of the Intel manual says “the
 One situation (like we saw in Question 5) is if the IDG’s IST is non-zero, it uses the IST bits to specify a specific index from the Interrupt Descriptor Table (IDT) to use for the RSP. This stack is obtained from the TSS through a stack switch.
 
 I have yet to test this but in Section 6.12.1.2 Vol. 3A of the Intel manual also says that the following situations apply:
-If the handler is placed in a non-confirming code segment with DPL of `0`, it will always execute regardless of the CPL. Therefore, if the CPL at the time of the interrupt or exception is higher than `0` (a less privileged level), the processor will perform a stack switch to a `R0` stack.
+- If the handler is placed in a non-confirming code segment with DPL of `0`, it will always execute regardless of the CPL. Therefore, if the CPL at the time of the interrupt or exception is higher than `0` (a less privileged level), the processor will perform a stack switch to a `R0` stack.
+- In addition, if the handler is placed in a conforming code segment, it will also execute regardless of the CPL. This makes sense because conforming code segments are designed to be accessible by code running at any privilege level. However, in this case, I don’t believe a stack switch will occur. This is because in Section 5.8.1.2 Vol. 3A of Intel manual says that “when program control is transferred to a conforming code segment, the CPL does not change”; therefore, no stack switch occurs.
 
-In addition, if the handler is placed in a conforming code segment, it will also execute regardless of the CPL. This makes sense because conforming code segments are designed to be accessible by code running at any privilege level. However, in this case, I don’t believe a stack switch will occur. This is because in Section 5.8.1.2 Vol. 3A of Intel manual says that “when program control is transferred to a conforming code segment, the CPL does not change”; therefore, no stack switch occurs.
-
-#### The Task State Segment (TSS) was referenced multiple times in relation to a stack switch. So, how does the processor actually locate the TSS?
+#### The Task State Segment (TSS) was referenced multiple times in relation to a stack switch. How does the processor actually locate the TSS?
 
 The TSS is accessed through the Task Register (TR). The processor uses the segment selector in the TR to find the TSS descriptor in the GDT, and from this descriptor, it retrieves the base address of the TSS and can then access the TSS itself in memory.
 
 ![Screenshot13](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot13.png)
 
-This is what the TSS look at on 64-bit mode:
+This is what the TSS look like on 64-bit mode:
 
 ![Screenshot14](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot14.png)
 

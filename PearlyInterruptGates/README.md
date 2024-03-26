@@ -232,7 +232,7 @@ The TSS is accessed through the Task Register (TR). The processor uses the segme
 
 ![Screenshot13](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot13.png)
 
-This is what the TSS look like on 64-bit mode:
+This is what the TSS looks like on 64-bit mode:
 
 ![Screenshot14](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot14.png)
 

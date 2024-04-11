@@ -2,9 +2,9 @@
 
 This writeup covers the Pearly Interrupt Gates lab from Xeno’s [Architecture 2001: x86-64 OS Internals](https://ost2.fyi/Arch2001) course at [OpenSecurityTraining2](https://ost2.fyi).
 
-Xeno made the lab to help deepen students' understanding of interrupt and exception-handling mechanisms.
+Xeno made this lab to deepen students' understanding of interrupt and exception handling.
 
-On question five I struggled to understand stack switching and how a target RSP address is found. Therefore, I have attempted to clearly describe this process with the help of Xeno’s slides and the Intel manual [here](#interrupts).
+I struggled to understand stack switching and how a target RSP address is found in question five. Therefore, I have attempted to describe this process with the help of Xeno’s slides and the Intel manual in a separate post [here]().
 
 ## Disclaimer
 
@@ -18,7 +18,17 @@ I am new to x86-64 OS Internals, so if there are any mistakes or necessary addit
 
 `dq` = quadwords (8 bytes).
 
-In entry one, the value `00107100` corresponds to bytes `3:0`, `5fe18e00` to bytes `7:4`, `fffff805` to bytes `11:8`, and `00000000` to bytes `15:12` as shown below:
+For entry one (`5fe18e00 00107100 00000000 fffff805`):
+* Bytes `3:0` (`00107100`):
+    * `7100` represents the offset bits `15..0` (as shown below).
+    * `0010` is the Segment Selector.
+* Bytes `7:4` (`5fe18e00`):
+    * `8e00` encapsulates the Descriptor Privilege Level (DPL), Type, and Interrupt Stack Table (IST) etc.
+    * `5fe1` represents the offset bits `31..16`.
+* Bytes `11:8` (`fffff805`):
+    * This value represents offset bits `63..32`.
+* Bytes `15:12` (`00000000`):
+    * This section is reserved.
 
 ![Screenshot2](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot2.png)
 
@@ -105,7 +115,7 @@ This means that those with `0x8` are for `R0`, and those with `0xE` are for `R3`
 - 0x06 - RSP0
 - 0x07 - RSP0
 
-Entries `0x00`, `0x05`, `0x06`, and `0x07` are executed at `R0`. If an attempt is made to invoke these handlers through a software interrupt - noting that the processor ignores the DPL for hardware-generated interrupts - and the Current Privilege Level (CPL) is greater than the DPL (`R0`) of the interrupt or trap gate, typically, the processor would not permit transfer of execution to the exception- or interrupt-handler procedure, resulting in a general-protection exception (#GP). Conversely, if the CPL is equal to the DPL (`R0`) and the handler is called, then the current stack is used.
+Entries `0x00`, `0x05`, `0x06`, and `0x07` are executed at `R0`. If an attempt is made to invoke these handlers through a software interrupt - note that the processor ignores the DPL for hardware-generated interrupts - and the Current Privilege Level (CPL) is greater than the DPL (`R0`) of the interrupt or trap gate, the processor would not permit transfer of execution to the exception- or interrupt-handler procedure. Conversely, if the CPL is equal to the DPL (`R0`) and the handler is called, execution transfer is permitted, and the current stack is used.
 
 For entries `0x03` and `0x04` which are executed at `R3`, a stack switch is **not** required because `R3` is accessible from all privilege levels.
 
@@ -184,61 +194,6 @@ Entry `0x03` and `0x04` (shown above).
 #### 2.	Did you get any IST targets correct according to the `!idt` output?
 
 :+1:
-
-# Understanding Stack Switching and Target RSP Address Determination in x86-64 Architecture
-<a name="interrupts"></a>
-
-#### Locating the Interrupt Descriptor Table (IDT): A Key Step in Interrupt Handling
-
-So, when an interrupt or exception occurs, the hardware automatically consults the IDTR. The IDT is located by the IDT Register (IDTR), and the LIDT (load IDT register) instruction (a privileged instruction) loads the IDTR register with the base address and limit held in a memory operand (Section 6-10 Vol. 3A). This base address points at the start of the Interrupt Descriptor Table (IDT), and the limit specifies the size of the IDT:
-
-![Screenshot10](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot10.png)
-
-In order to access a specific descriptor in the IDT (in response to an exception or interrupt), the processor uses “the exception or interrupt vector as an index to a descriptor in the IDT” (shown in Figure 6-3 below). These exception/interrupt vectors can be found in Section 6-2 Vol. 3A of the Intel manual.
-
-The descriptors in the IDT can be either Interrupt or Trap Gates, and each contain a segment selector and a 64-bit offset which tells the processor where the code for the exception- or interrupt-handler is located.
-
-Xeno said “you can think of the IDT as an array of function (far) pointers, and when interrupt (vector) n is invoked by software or hardware, execution transfers to the address pointed to by the nth descriptor in the table”. However, there will be checks for access control on the interrupt gate itself (in the IDT), as well as on the ultimate destination segment to which that interrupt gate points (Interrupt Procedure).
-
-Therefore, before the processor can call the interrupt or exception handler (shown as the Interrupt Procedure in Figure 6-3), it needs to check that the privilege levels are appropriate.
--	If the handler is at the same privilege level, the current stack is used.
--	If the handler is at a lower privilege level, the processor performs a stack switch. This switch involves the Task State Segment (TSS).
-
-![Screenshot11](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot11.png)
-
-In the case of a stack switch (according to Section 6.12.1 Vol. 3A of the Intel manual):
-
-- “The segment selector and stack pointer for the stack to be used by the handler are obtained from the TSS (Task State Segment) for the currently executing task. On this new stack, the processor pushes the stack segment selector and stack pointer of the interrupted procedure.
-- The processor then saves the current state of the EFLAGS, CS, and EIP registers on the new stack (see Figure 6-4 below).
-- If an exception causes an error code to be saved, it is pushed on the new stack after the EIP value.”
-
-![Screenshot12](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot12.png)
-
-After the stack switch, the processor uses the segment selector and offset (from the IDT entry) to locate and execute the interrupt or exception handler. This handler code will operate on the new stack. 
-
-In order to return from the handler, the `IRET` instruction is used, which will restore the state of the processor to what it was before the interrupt or exception, which includes a switch back to the original stack.
-
-That all being said, in Section 6.12.1.2 Vol. 3A of the Intel manual says “the processor does not permit transfer of execution to an exception- or interrupt-handler procedure in a less privileged code segment (numerically greater privilege level) than the CPL”. That means that if the handler is at a lower privilege level than the CPL, the interrupt is NOT allowed, and no stack switch occurs. So, **WHEN** does a stack switch actually occur?
-
-One situation (like we saw in Question 5) is if the IDG’s IST is non-zero, it uses the IST bits to specify a specific index from the Interrupt Descriptor Table (IDT) to use for the RSP. This stack is obtained from the TSS through a stack switch.
-
-I have yet to test this but in Section 6.12.1.2 Vol. 3A of the Intel manual also says that the following situations apply:
-- If the handler is placed in a non-confirming code segment with DPL of `0`, it will always execute regardless of the CPL. Therefore, if the CPL at the time of the interrupt or exception is higher than `0` (a less privileged level), the processor will perform a stack switch to a `R0` stack.
-- In addition, if the handler is placed in a conforming code segment, it will also execute regardless of the CPL. This makes sense because conforming code segments are designed to be accessible by code running at any privilege level. However, in this case, I don’t believe a stack switch will occur. This is because in Section 5.8.1.2 Vol. 3A of Intel manual says that “when program control is transferred to a conforming code segment, the CPL does not change”; therefore, no stack switch occurs.
-
-#### The Task State Segment (TSS) was referenced multiple times in relation to a stack switch. How does the processor actually locate the TSS?
-
-The TSS is accessed through the Task Register (TR). The processor uses the segment selector in the TR to find the TSS descriptor in the GDT, and from this descriptor, it retrieves the base address of the TSS and can then access the TSS itself in memory.
-
-![Screenshot13](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot13.png)
-
-This is what the TSS looks like on 64-bit mode:
-
-![Screenshot14](https://github.com/theokwebb/my-writeups/blob/main/PearlyInterruptGates/Images/Screenshot14.png)
-
-It includes RSPn which are the 64-bit stack pointers for privilege levels `0-2`. RSPn are the addresses that will be used as the RSP in the case of a stack switch and point to the stack to be used when an interrupt occurs that transitions the processor into a lower privilege level (like Ring `0`). This address specifies the top of the stack where the processor can push the stack segment selector, stack pointer, etc.
-
-The TSS also includes 64-bit interrupt stack table (IST) pointers (ISTn). There are seven possible stack locations for specific interrupts (such as NMI, double-fault, and machine-check) in the Interrupt Descriptor Table (IDT) highlighted above.
 
 #
 

@@ -4,7 +4,7 @@ This writeup covers the Pearly Interrupt Gates lab from Xeno’s [Architecture 2
 
 Xeno made this lab to deepen students' understanding of interrupt and exception handling.
 
-I struggled to understand stack switching and how a target RSP address is found in question five. Therefore, I have attempted to describe this process with the help of Xeno’s slides and the Intel manual in a separate post [here]().
+I struggled to understand stack switching and how a target RSP address is found in question five. Therefore, I have attempted to describe this process with the help of Xeno’s slides and the Intel manual in a separate post [here](https://theokwebb.github.io/posts/interrupt-handling-and-stack-switching/).
 
 ## Disclaimer
 
